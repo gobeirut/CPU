@@ -14,5 +14,5 @@
 #ifndef DECODE_H
 #define DECODE_H
 
-void instructionDecode(uint32_t instruction, uint16_t *op, uint16_t *rs, uint16_t *rt, uint16_t *rd, uint16_t *pcControl, uint32_t *jumpDest);
+void instructionDecode(uint32_t instruction, uint16_t *op, uint16_t *rs, uint16_t *rt, uint16_t *rd, uint16_t *pcControl, uint16_t *shamt, uint16_t *funct, uint32_t *jumpDest);
 #endif /* DECODE_H */

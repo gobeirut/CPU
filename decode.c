@@ -12,15 +12,13 @@
  */
 #include <stdint.h>
 
-void instructionDecode(uint32_t instruction, uint16_t *op, uint16_t *rs, uint16_t *rt, uint16_t *rd, uint16_t *pcControl, uint32_t *jumpDest) {
-    //        int16_t op; //31-26
-    //        int16_t rs; //25-21
-    //        int16_t rt; //20-16
-    //        int16_t rd; //15-11
-    //        int16_t pcControl; //15-0
-    //
-    //        int16_t jumpDest; //25-0
-    
- /* Hier ergänzen */
-
+void instructionDecode(uint32_t instruction, uint16_t *op, uint16_t *rs, uint16_t *rt, uint16_t *rd, uint16_t *pcControl,uint16_t *shamt, uint16_t *funct, uint32_t *jumpDest) {
+   *op = (instruction >> 26) & 0x3F;
+   *rs = (instruction >> 21) & 0x1F;
+   *rt = (instruction >> 16) & 0x1F;
+   *rd = (instruction >> 11) & 0x1F;
+   *shamt = (instruction >>6) & 0x1F;
+   *funct = (instruction & 0x3F);
+   *pcControl = instruction & 0xFFFF;
+   *jumpDest = instruction & 0x03FFFFFF;
 }

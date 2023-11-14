@@ -17,16 +17,16 @@
 #include <stdint.h>
 
 #include "memory.h"
-/*
+
 #include "alu.h"
 #include "registerBank.h"
 #include "outputControl.h"
 #include "decode.h"
-*/
+
 /*
  * 
  */
-int16_t main(int16_t argc, char** argv) {
+int main(int argc, char** argv) {
 
     printf("Welcome to Mips Emulator\n");
 
@@ -40,7 +40,7 @@ int16_t main(int16_t argc, char** argv) {
     if (argc < 2) {
         // printf("Usage : ./cpu <filename>");
         // exit(0);
-        memorysize = readFile("test.o", &memory);
+        memorysize = readFile("test.bin", &memory);
     } else {
         memorysize = readFile(argv[1], &memory);
     }
@@ -75,16 +75,21 @@ int16_t main(int16_t argc, char** argv) {
         int16_t rt; //20-16
         int16_t rd; //15-11
         int16_t pcControl; //15-0
-
+        uint16_t shamt;
+        uint16_t funct;
         int32_t jumpDest; //25-0
 
-	// Decodes the instruction into the different parts
-        instructionDecode(instruction, &op, &rs, &rt, &rd, &pcControl, &jumpDest);
+        // Decodes the instruction into the different parts
+        instructionDecode(instruction, &op, &rs, &rt, &rd, &pcControl, &shamt, &funct, &jumpDest);
+        printf("Decoded Instruction: OP: %x, RS: %x, RT: %x, RD: %x, PC Control: %x, SHAMT: %x, FUNCT: %x, Jump Dest: %x\n",
+               op, rs, rt, rd, pcControl, shamt, funct, jumpDest);
+
 
         bool regDst, aluSrc, memToReg, regWrite, memRead, memWrite, branch, jump, aluOp1, aluOp0;
 
-	// calculate control lane settings
-        outputControl(op, &regDst, &aluSrc, &memToReg, &regWrite, &memRead, &memWrite, &branch, &jump, &aluOp1, &aluOp0);
+        // calculate control lane settings
+        outputControl(op, &regDst, &aluSrc, &memToReg, &regWrite, &memRead, &memWrite, &branch, &jump, &aluOp1,
+                      &aluOp0);
 
         // Read Registers / Mem
         int32_t A, B;
@@ -93,72 +98,94 @@ int16_t main(int16_t argc, char** argv) {
         // Perform ALU Operation
         int32_t aluResult;
         bool zero;
-        
+
         // in der letzten Version haben wir aluControl / aluInput manuell gesetzt
         // Definieren sie hier die Logik zum Ermitteln von ALU Input
         int16_t aluInput;
-       if (!aluOp1 && !aluOp0) // LW & SW
-          aluInput = 0x02;
-       else 
+        if (!aluOp1 && !aluOp0) // LW & SW
+            aluInput = 0x02;
+        if (op == 0x23) {
+            aluInput = 0x02;
+            printf("Alu op: LW \n");
+        } else if (op == 0x2B) {
+            aluInput = 0x0C;
+            printf("Alu op : SW \n");
+        } else if (aluOp1 && !aluOp0) { // R-type instructions
+            // Here, you need to check the 'funct' field to determine the specific operation
+            switch (funct) {
+                case 0x20: // ADD
+                    aluInput = 0x02; // Example operation code for ADD
+                    printf("Alu op: R-type ADD \n");
+                    break;
+                case 0x22: // SUB
+                    aluInput = 0x06; // Example operation code for SUB
+                    printf("Alu op: R-type SUB \n");
+                    break;
+                case 0x24: // AND
+                    aluInput = 0x00;
+                    printf("Alu op: R-type AND \n");
+                    break;
+                case 0x25: // OR
+                    aluInput = 0x01;
+                    printf("Alu op: R-type AND \n");
+                    break;
+            }
 
-/*
-       ...
-       */
 
-        
-        if (aluSrc)
-            alu(A, pcControl, aluOp1, aluOp0, aluInput, &aluResult, &zero);
-        else
-            alu(A, B, aluOp1, aluOp0, aluInput, &aluResult, &zero);
-
-
-        // Write Registers
-
-        if (regWrite) {
-
-            if (regDst == 0)
-                rd = rt;
-            if (memToReg)
-                writeRegister(rd, readMem(aluResult, memory));
+            if (aluSrc)
+                alu(A, pcControl, aluOp1, aluOp0, aluInput, &aluResult, &zero);
             else
-                writeRegister(rd, aluResult);
+                alu(A, B, aluOp1, aluOp0, aluInput, &aluResult, &zero);
+
+
+            // Write Registers
+
+            if (regWrite) {
+
+                if (regDst == 0)
+                    rd = rt;
+                if (memToReg)
+                    writeRegister(rd, readMem(aluResult, memory));
+                else
+                    writeRegister(rd, aluResult);
+            }
+
+            // Write Memory
+            if (memWrite)
+                writeMem(aluResult, B, memory);
+
+            // Calculate next IP value
+            if (jump) {
+                // mask PC
+                instruction_pointer &= 0x780000;
+                // extend jumpDest to 32 bit (alraedy done)
+                // shift left 2 jumpDest
+                jumpDest = jumpDest << 2;
+                // combine PC and jumpDest
+                instruction_pointer |= jumpDest;
+            } else if ((zero && branch)) {
+                int16_t *test;
+                test = (int16_t *) &instruction;
+
+                // 16 to 32 bit extend
+                int32_t value = 0;
+                value = test[1];
+
+                // sign extend
+                if ((test[1] >> 15) == 1)
+                    value |= 0xFFFF0000;
+
+                // shift left by 2
+                value = value << 2;
+                instruction_pointer += value;
+            } else {
+                instruction_pointer += 4;
+            }
+
         }
 
-        // Write Memory
-        if (memWrite)
-            writeMem(aluResult, B, memory);
-
-        // Calculate next IP value
-        if (jump) {
-            // mask PC
-            instruction_pointer &= 0x780000;
-            // extend jumpDest to 32 bit (alraedy done)
-            // shift left 2 jumpDest
-            jumpDest = jumpDest << 2;
-            // combine PC and jumpDest
-            instruction_pointer |= jumpDest;
-        } else if ((zero && branch)) {
-            int16_t* test;
-            test = (int16_t*) & instruction;
-
-            // 16 to 32 bit extend
-            int32_t value = 0;
-            value = test[1];
-
-            // sign extend
-            if ((test[1] >> 15) == 1)
-                value |= 0xFFFF0000;
-
-            // shift left by 2
-            value = value << 2;
-            instruction_pointer += value;
-        } else {
-            instruction_pointer += 4;
-        }
-
+        writeFile(memory, memorysize);
+        return (EXIT_SUCCESS);
     }
-*/
-    writeFile(memory,memorysize);
-    return (EXIT_SUCCESS);
 }
 
